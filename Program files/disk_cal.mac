@@ -1,0 +1,165 @@
+finish
+!
+/clear
+RESUME,'local_disk_silicon','db','C:\Users\siddhesh_sakhalkar\Desktop\Siddhesh Codes\Static touchdown',0,0 ! change path
+
+/PREP7
+
+!!!!!!!!!!!!!!!!!! Material Properties !!!!!!!!!!!!!!!!!!!!!!!!
+
+! disk material properties-silicon
+MP, EX, 4, 1.13E5
+MP, PRXY, 4, 0.42
+MP, ALPX, 4, 2.6E-6
+MP, KXX, 4, 1.48E8
+allsel
+LSCLEAR,ALL
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+*DEL,ele_CONV_in,,nopr 
+*DEL,slider_temp,,nopr 
+*DEL,disk_temp,,nopr 
+*DEL,max_disk_temp_1,,nopr 
+*DEL,iter,,nopr 
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+esel,s,type,,2
+*Get,surf_elenum,ELEM,0,count
+
+*DIM,ele_CONV_in,,surf_elenum,3
+*CFOPEN,Convection_coef_initial_BC,dat
+*Vread,ele_CONV_in(1,1),Convection_coef_initial_BC,dat,,JIK,3,surf_elenum
+(F15.5,' ',F15.5,' ',F15.5)
+*CFCLOS
+
+*DIM,slider_temp,,surf_elenum,3
+*VREAD,slider_temp(1,1),slider_temp_initial,dat,,JIK,3,surf_elenum
+(F15.11,' ',F15.11,' ',F15.11)
+
+*DIM,max_disk_temp_1,,120
+*CFOPEN,temp_maxdisktemp_main1,dat
+*Vread,max_disk_temp_1(1),temp_maxdisktemp_main1,dat
+(F15.11)
+*CFCLOS
+
+*DIM,ITER,,1
+*CFOPEN,main_iteration_count,dat
+*Vread,ITER(1),main_iteration_count,dat
+(F15.5)
+*CFCLOS
+main_iteration_count=NINT(ITER(1))
+
+!************solve for structural temperature******************
+
+!!!!!!!!!!!!!!!!!!!!!!!! Ref Temp !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Room_temp = 25
+allsel,all
+TUNIF,Room_temp,   
+TREF,Room_temp,
+
+!!!!!!!!!!!!!!!!!!!!!!! Conv B. C. !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+ESEL,S,TYPE, ,2
+*get,cur_ele,ELEM,0,NUM,min
+*do,i,1,surf_elenum,1
+SFE,cur_ele,1,CONV,0,ele_CONV_in(i,1),ele_CONV_in(i,2),ele_CONV_in(i,3),ele_CONV_in(i,3) !film coefficient
+SFE,cur_ele,1,CONV,2,slider_temp(i,1),slider_temp(i,2),slider_temp(i,3),slider_temp(i,3) !bulk temperature
+*get,cur_ele,ELEM,cur_ele,NXTH
+*enddo
+
+ESEL,S,TYPE,,5
+NSEL,S,EXT
+NSEL,R,LOC,Z,230
+SF,,CONV,0,Room_temp  
+
+ALLSEL,ALL
+NSEL,S,EXT
+NSEL,R,LOC,X,-50
+NSEL,A,LOC,X,1100
+NSEL,A,LOC,Y,-50
+NSEL,A,LOC,Y,750
+NSEL,A,LOC,Z,-100
+SF,,CONV,1e5,Room_temp  
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+ALLSEL
+
+FINISH
+/SOLU
+ANTYPE,STATIC,NEW
+ALLSEL,ALL
+SOLVE
+FINISH
+
+!**********************calculate convection********************
+
+/post1
+*DIM,disk_temp,,surf_elenum,3
+*DIM,ele_CONV_out,,surf_elenum,3
+
+esel,s,type,,2
+*Get,surf_elenum,ELEM,0,count
+*get,cur_ele,ELEM,0,NUM,min
+
+max_temp = Room_temp
+
+*DIM,disk_temp_initial,,surf_elenum,3
+*CFOPEN,disk_temp_initial,dat
+*Vread,disk_temp_initial(1,1),disk_temp_initial,dat,,JIK,3,surf_elenum 
+(F15.11,' ',F15.11,' ',F15.11)
+*CFCLOS
+
+*do,KK,1,surf_elenum,1
+	*get,nodenum,ELEM,cur_ele,NODE,1
+	*get,node1_temp,node,nodenum,TEMP
+	disk_temp(KK,1) = node1_temp
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	
+	*get,nodenum,ELEM,cur_ele,NODE,2
+	*get,node2_temp,node,nodenum,TEMP
+	disk_temp(KK,2) = node2_temp
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	
+	*get,nodenum,ELEM,cur_ele,NODE,3
+	*get,node3_temp,node,nodenum,TEMP
+	disk_temp(KK,3) = node3_temp
+	
+!!!!!!!!!!!!!!!!!!!!!!! Get Max Disk Temp !!!!!!!!!!!!!!!!!!!!!
+
+	*if,node1_temp,GT,max_temp,then
+		max_temp = node1_temp
+	*endif	
+	*if,node2_temp,GT,max_temp,then
+		max_temp = node2_temp
+	*endif
+	*if,node3_temp,GT,max_temp,then
+		max_temp = node3_temp
+	*endif
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	
+	*get,cur_ele,ELEM,cur_ele,NXTH
+*enddo
+
+max_disk_temp_1(main_iteration_count)=max_temp
+
+ALLSEL,all
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+*CFOPEN,temp_maxdisktemp_main1,dat
+*VWRITE,max_disk_temp_1(1)
+(F15.11,' ',F15.11)
+*CFCLOS
+
+*CFOPEN,disk_temp,dat
+*VWRITE,disk_temp(1,1),disk_temp(1,2),disk_temp(1,3)
+(F15.11,' ',F15.11,' ',F15.11)
+*CFCLOS
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

@@ -1,0 +1,65 @@
+! ARG1 is clearance in nm
+! ARG2 is x-co-ordinate in micrometer
+! ARG3 is T0 = disk temp in degC
+! ARG4 is dT = slider temp - disk temp in degC
+
+max_htc = 5e7
+
+!!!!!!!!!!!!!!!!!!!!! Phonon Conduction !!!!!!!!!!!!!!!!!!!!!!!
+
+*if,ARG3,LE,25,then
+	ARG3 = 25
+*endif
+*if,ARG3,GE,125,then
+	ARG3 = 125
+*endif
+
+*if,ARG4,LE,4,then
+	ARG4 = 4
+*endif
+*if,ARG4,GE,400,then
+	ARG4 = 400
+*endif
+
+*if,ARG1,LE,0.1,then
+	ARG1 = 0.1
+*endif
+
+k1 = 1.4
+k2 = -0.83
+k3 = -1.93
+b = 12.33
+
+output = exp( (k1*log(ARG3 + 273.15)-k1*log(273.15+25)) + (k2*log(ARG4)-k2*log(400)) + k3*log(ARG1) + b )
+
+!!!!!!!!!!!!!!!!!!!!!!!! Air Conduction !!!!!!!!!!!!!!!!!!!!!!! 
+
+k_bulk = 0.0264
+lambda0_bulk = 63.5e-9
+lambda_bulk = lambda0_bulk
+sigma = 0.9
+gamma = 1.4
+Pr = 0.71
+b_air = (2-sigma)/sigma*2*gamma/(gamma+1)/Pr
+
+*if,ARG1*1e-9,LE,lambda_bulk,then
+	lambda_eff = 3/4*ARG1*1e-9 - ARG1*1e-9/2*log(ARG1*1e-9/lambda_bulk)
+*else
+	lambda_eff = lambda_bulk - lambda_bulk^2/4/(ARG1*1e-9)
+*endif
+
+k_eff = k_bulk/lambda0_bulk*lambda_eff
+
+h_eff = ARG1*1e-9 + 2*b_air*lambda_eff
+
+output = output + k_eff/h_eff
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+*if,output,GE,max_htc,then
+	output=max_htc
+*endif
+
+*if,output,LE,100,then
+	output=100
+*endif

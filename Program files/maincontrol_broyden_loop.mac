@@ -1,0 +1,78 @@
+!!!!!!!!!!!!!!!!!!!!!! Evaluate f(htc) !!!!!!!!!!!!!!!!!!!!!!!!
+
+*use,disk_cal.mac
+
+*use,slider_cal_protrusion.mac
+
+!!!!!!!!!!!!!!!!!!!!!! Read f(htc) !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+*DEL,ele_CONV_out,,nopr 
+*DEL,ele_CONV_in,,nopr 
+*DEL,surf_elenum,,nopr 
+*DEL,ITER,,nopr
+surf_elenum = 754
+
+*DIM,ITER,,1
+*CFOPEN,main_iteration_count,dat
+*Vread,ITER(1),main_iteration_count,dat
+(F15.5)
+*CFCLOS
+main_iteration_count=NINT(ITER(1))
+
+*DIM,ele_CONV_in,,surf_elenum,3
+*CFOPEN,Convection_coef_initial_BC,dat
+*Vread,ele_CONV_in(1,1),Convection_coef_initial_BC,dat,,JIK,3,surf_elenum
+(F15.5,' ',F15.5,' ',F15.5)
+*CFCLOS
+
+*DIM,ele_CONV_out,,surf_elenum,3
+*CFOPEN,Convection_coef_slider_out,dat
+*Vread,ele_CONV_out(1,1),Convection_coef_slider_out,dat,,JIK,3,surf_elenum
+(F15.5,' ',F15.5,' ',F15.5)
+*CFCLOS
+
+*DIM,maxCONV_main0,,120
+*CFOPEN,temp_max_CONV_main0,dat
+*Vread,maxCONV_main0(1),temp_max_CONV_main0,dat
+(E16.9)
+*CFCLOS
+
+*DIM,maxCONV_main1,,120
+*CFOPEN,temp_max_CONV_main1,dat
+*Vread,maxCONV_main1(1),temp_max_CONV_main1,dat
+(E16.9)
+*CFCLOS
+
+*do,KK,1,surf_elenum,1
+
+	*if,ele_CONV_in(KK,1),GE,maxCONV_main0(main_iteration_count),then
+		maxCONV_main0(main_iteration_count) = ele_CONV_in(KK,1)
+	*endif
+	*if,ele_CONV_in(KK,2),GE,maxCONV_main0(main_iteration_count),then
+		maxCONV_main0(main_iteration_count) = ele_CONV_in(KK,2)
+	*endif
+	*if,ele_CONV_in(KK,3),GE,maxCONV_main0(main_iteration_count),then
+		maxCONV_main0(main_iteration_count) = ele_CONV_in(KK,3)
+	*endif
+
+	*if,ele_CONV_out(KK,1),GE,maxCONV_main1(main_iteration_count),then
+		maxCONV_main1(main_iteration_count) = ele_CONV_out(KK,1)
+	*endif
+	*if,ele_CONV_out(KK,2),GE,maxCONV_main1(main_iteration_count),then
+		maxCONV_main1(main_iteration_count) = ele_CONV_out(KK,2)
+	*endif
+	*if,ele_CONV_out(KK,3),GE,maxCONV_main1(main_iteration_count),then
+		maxCONV_main1(main_iteration_count) = ele_CONV_out(KK,3)
+	*endif
+
+*enddo
+
+*CFOPEN,temp_max_CONV_main0,dat
+*VWRITE,maxCONV_main0(1)
+(F15.5,' ',F15.5)
+*CFCLOS
+
+*CFOPEN,temp_max_CONV_main1,dat
+*VWRITE,maxCONV_main1(1)
+(F15.5,' ',F15.5)
+*CFCLOS

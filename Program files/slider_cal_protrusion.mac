@@ -1,0 +1,396 @@
+finish
+!
+/clear
+RESUME,'WD_noTDS','db','C:\Users\siddhesh_sakhalkar\Desktop\Siddhesh Codes\Static touchdown',0,0 ! change path
+
+/prep7
+TFCvolume=0.1*22*4.5        
+HGrate_permW=1e-3*1e12/TFCvolume
+ini_clearance = 21.3
+
+allsel
+LSCLEAR,ALL 
+*SREAD,MATLABOUT,MOAI.txt
+TFC_s=MATLABOUT(1,1,1)
+TFCP_final=VALCHR(TFC_s)
+
+!!!!!!!!!!!!!!!!!! Material Properties !!!!!!!!!!!!!!!!!!!!!!!!
+
+! substrate (AlTiC) material properties
+ MP, EX, 1, 3.8E5       
+ MP, PRXY, 1, 0.3      
+ MP, ALPX, 1, 6.9E-6    
+ MP, KXX, 1, 20E6      
+
+! overcoat (Al2O3) material properties
+ MP, EX, 2, 1E5         
+ MP, PRXY, 2, 0.3       
+ MP, ALPX, 2, 6.5E-6    
+ MP, KXX, 2, 1.8E6      
+
+! TFC heater material properties
+ MP, EX, 3, 1.2E5       
+ MP, PRXY, 3, 0.3       
+ MP, ALPX, 3, 11E-6     
+ MP, KXX, 3, 25e6       
+
+! Effective Reader/Writer/Shield material properties
+ MP, EX, 5, 2E5          
+ MP, PRXY, 5, 0.3        
+ MP, ALPX, 5, 7E-6      
+ MP, KXX, 5, 50e6       
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+*DEL,ele_num,,nopr 
+*DEL,iter,,nopr 
+*DEL,disk_temp,,nopr 
+*DEL,ele_node_temp,,nopr 
+*DEL,ele_CONV_in,,nopr 
+*DEL,TDStemp_1,,nopr 
+*DEL,TFCprotrusion_1,,nopr 
+*DEL,ele_CONV_out,,nopr 
+*DEL,gap,,nopr 
+*DEL,gap_initial,,nopr 
+*DEL,slider_temp,,nopr 
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+*GET,sliderthickness, NODE, 0, MXLOC,Z
+nsel,s,loc,z,sliderthickness,sliderthickness+0.01
+ET,2,SURF152
+KEYOPT,2,8,2
+type,2
+ESURF,0
+NUMCMP,ELEM 
+esel,s,type,,2
+*Get,surf_elenum,ELEM,0,count
+*Get,surf_nodenum,NODE,0,count
+
+*DIM,ele_num,,surf_elenum
+
+*DIM,ITER,,1
+*CFOPEN,main_iteration_count,dat
+*Vread,ITER(1),main_iteration_count,dat
+(F15.5)
+*CFCLOS
+main_iteration_count=NINT(ITER(1))
+
+*DIM,ele_node_temp, ,surf_elenum,4
+ESEL,S,TYPE, ,2
+*get,cur_ele,ELEM,0,NUM,min
+
+*do,ww,1,surf_elenum,1
+	*get,nodenum_1,ELEM,cur_ele,NODE,1
+	*get,nodenum_2,ELEM,cur_ele,NODE,2
+	*get,nodenum_3,ELEM,cur_ele,NODE,3
+	ele_node_temp(ww,1)=cur_ele
+	ele_node_temp(ww,2)=nodenum_1
+	ele_node_temp(ww,3)=nodenum_2
+	ele_node_temp(ww,4)=nodenum_3
+	ele_num(ww)=cur_ele
+	*get,cur_ele,ELEM,cur_ele,NXTH
+*enddo
+
+*DIM,ele_CONV_in,,surf_elenum,3
+*CFOPEN,Convection_coef_initial_BC,dat
+*Vread,ele_CONV_in(1,1),Convection_coef_initial_BC,dat,,JIK,3,surf_elenum
+(F15.5,' ',F15.5,' ',F15.5)
+*CFCLOS
+
+*DIM,disk_temp,,surf_elenum,3
+*CFOPEN,disk_temp_initial,dat
+*Vread,disk_temp(1,1),disk_temp_initial,dat,,JIK,3,surf_elenum 
+(F15.11,' ',F15.11,' ',F15.11)
+*CFCLOS
+
+*DIM,gap_initial,,surf_elenum,3
+*CFOPEN,gap_initial,dat
+*Vread,gap_initial(1,1),gap_initial,dat,,JIK,3,surf_elenum
+(F15.11,' ',F15.11,' ',F15.11)
+*CFCLOS
+
+*DIM,TDStemp_1,,120
+*CFOPEN,temp_TDStemp_main1,dat
+*Vread,TDStemp_1(1),temp_TDStemp_main1,dat
+(F15.11)
+*CFCLOS
+
+*DIM,TFCprotrusion_1,,120
+*CFOPEN,temp_TFCprotrusion_main1,dat
+*Vread,TFCprotrusion_1(1),temp_TFCprotrusion_main1,dat
+(F15.11)
+*CFCLOS
+
+*DIM,ele_CONV_out,,surf_elenum,3
+*DIM,gap,,surf_elenum,3
+
+!************solve for structural temperature******************
+
+/prep7
+allsel
+LSCLEAR,ALL
+
+KEYOPT,1,1,8
+ALLSEL 
+FINISH
+/SOLU
+ANTYPE,STATIC,NEW      
+
+!!!!!!!!!!!!!!!!!!!!!!!! TFC Heating !!!!!!!!!!!!!!!!!!!!!!!!!!
+
+BFV,3,HGEN,HGrate_permW*TFCP_final
+
+!!!!!!!!!!!!!!!!!!!!!!!!! Ref Temp !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Room_temp = 25
+allsel,all
+TUNIF,Room_temp,   
+TREF,Room_temp,
+
+!!!!!!!!!!!!!!!!!!!!!!! Conv B. C. !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+!!!!!!!!!!!!!!!!!!!!! Select Front External Areas !!!!!!!!!!!!!
+
+*do,KK,1,surf_elenum,1
+	SFE,ele_num(KK),1,CONV,0,ele_CONV_in(KK,1),ele_CONV_in(KK,2),ele_CONV_in(KK,3),ele_CONV_in(KK,3)
+	SFE,ele_num(KK),1,CONV,2,disk_temp(KK,1),disk_temp(KK,2),disk_temp(KK,3),disk_temp(KK,3)
+*enddo
+
+!!!!!!!!!!!!!!!! Select Back External Areas !!!!!!!!!!!!!!!!!!!
+
+NSEL,S,LOC,Z,0
+SF,,CONV,2e3,Room_temp ! Back Convection
+
+!!!!!!!!!!!!!!!! Select Side External Areas !!!!!!!!!!!!!!!!!!!
+
+NSEL,S,LOC,X,0
+SF,,CONV,0,Room_temp  ! Side Convection
+NSEL,S,LOC,X,840 
+SF,,CONV,0,Room_temp  ! Side Convection
+NSEL,S,LOC,Y,0
+SF,,CONV,0,Room_temp  ! Side Convection
+NSEL,S,LOC,Y,700
+SF,,CONV,0,Room_temp  ! Side Convection
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+ALLSEL
+SOLVE
+FINISH
+
+/post1
+
+!!!!!!!!!!!!!!!!!!!!!!!!! Set TDStemp !!!!!!!!!!!!!!!!!!!!!!!!!
+error = 0.3
+NSEL,S,LOC,X,826.6-error,826.65+error
+NSEL,R,LOC,Y,349.25,350.75
+NSEL,R,LOC,Z,229.85-error,230+error
+*get,node_num,NODE,0,NUM,MIN
+*get,TDStemp_1(main_iteration_count),NODE,node_num,TEMP
+
+*CFOPEN,temp_TDStemp_main1,dat
+*VWRITE,TDStemp_1(1),
+(F15.11,' ',F15.11)
+*CFCLOS
+
+!*********************solve for deformation********************
+
+ALLSEL
+/prep7
+
+esel,s,type,,2
+edele,all
+KEYOPT,1,1,2
+
+allsel,all
+
+*GET,sliderthickness, NODE, 0, MXLOC,Z
+nsel,s,loc,z,sliderthickness,sliderthickness+0.01
+ET,3,SURF154
+type,3
+ESURF,0
+NUMCMP,ELEM 
+
+*DEL,ele_num_disp,,nopr
+*DIM,ele_num_disp,,surf_elenum
+
+ESEL,S,TYPE, ,3
+*get,cur_ele,ELEM,0,NUM,min
+
+*do,ww,1,surf_elenum,1
+	ele_num_disp(ww)=cur_ele
+	*get,cur_ele,ELEM,cur_ele,NXTH
+*enddo
+
+allsel,all
+
+!!!!!!!!!!!!!!!!!!!!!!!!! Ref Temp !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+TUNIF,Room_temp,   
+TREF,Room_temp,
+
+ALLSEL  
+FINISH  
+/SOLU
+
+ANTYPE,STATIC,NEW
+! read temperature from last analysis
+LDREAD,TEMP,,,,,,rth
+
+!!!!!!!!!!!!!!!!!!!!!!!! Struct B. C. !!!!!!!!!!!!!!!!!!!!!!!!!
+
+! fix back of slider in z
+NSEL,S,LOC,Z,0
+D,ALL,UZ,0
+
+! fix two corners at leading edge of ABS
+DK,1, , , ,0,ALL, , , , , ,  
+DK,2, , , ,0,ALL, , , , , , 
+
+*do,KK,1,surf_elenum,1
+
+!!!!!!!!!!! Cutoff for van der Waals force !!!!!!!!!!!!!!!!!!!!
+	cutoff = 0.35
+
+	*if,gap_initial(KK,1),LT,cutoff,then
+		gap_initial(KK,1) = cutoff
+	*endif
+	*if,gap_initial(KK,2),LT,cutoff,then
+		gap_initial(KK,2) = cutoff
+	*endif
+	*if,gap_initial(KK,3),LT,cutoff,then
+		gap_initial(KK,3) = cutoff
+	*endif
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+	vander_press_1 = (0.4e-19/6/3.14/(gap_initial(KK,1)*1e-9)**3 - 1e-76/45/3.14/(gap_initial(KK,1)*1e-9)**9)/1e6 
+	vander_press_2 = (0.4e-19/6/3.14/(gap_initial(KK,2)*1e-9)**3 - 1e-76/45/3.14/(gap_initial(KK,2)*1e-9)**9)/1e6
+	vander_press_3 = (0.4e-19/6/3.14/(gap_initial(KK,3)*1e-9)**3 - 1e-76/45/3.14/(gap_initial(KK,3)*1e-9)**9)/1e6 
+
+	*if,vander_press_1,LT,0,then
+		vander_press_1 =0
+	*endif
+	*if,vander_press_2,LT,0,then
+		vander_press_2 =0
+	*endif
+	*if,vander_press_3,LT,0,then
+		vander_press_3 =0
+	*endif
+
+	SFE,ele_num(KK),1,PRES,0,-vander_press_1,-vander_press_2,-vander_press_3,-vander_press_3
+*enddo
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+allsel
+SOLVE 
+
+!**********************calculate convection********************
+/post1
+*DIM,slider_temp, ,surf_elenum,3
+gap_min1 = 100
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+*get,node1_z,NODE,ele_node_temp(211,3),U,Z
+base_protrusion = node1_z*1000
+*if,base_protrusion,LT,0,then
+	base_protrusion = 0
+*endif
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+*do,KK,1,surf_elenum,1
+	*get,node1_z,NODE,ele_node_temp(KK,2),U,Z
+	*get,node1_temp,NODE,ele_node_temp(KK,2),NTEMP
+	*get,node1_x,NODE,ele_node_temp(KK,2),LOC,X	
+	clearance = ini_clearance-(node1_z*1000-base_protrusion)
+	*if,clearance,LT,0,then
+		clearance = 0
+	*endif
+
+	gap(KK,1) = clearance
+	dT1 = node1_temp - disk_temp(KK,1)	
+	*use, HF_cal.mac, gap(KK,1), node1_x, disk_temp(KK,1), dT1
+	ele_CONV_out(KK,1)=output
+
+	slider_temp(KK,1) = node1_temp
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+	*get,node2_z,NODE,ele_node_temp(KK,3),U,Z
+	*get,node2_temp,NODE,ele_node_temp(KK,3),NTEMP
+	*get,node2_x,NODE,ele_node_temp(KK,3),LOC,X	
+	clearance=ini_clearance-(node2_z*1000-base_protrusion)
+	*if,clearance,LT,0,then
+		clearance=0
+	*endif
+
+	gap(KK,2)=clearance
+	dT2 = node2_temp - disk_temp(KK,2)	
+	*use, HF_cal.mac, gap(KK,2), node2_x, disk_temp(KK,2), dT2
+	ele_CONV_out(KK,2)=output
+
+	slider_temp(KK,2) = node2_temp
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+	*get,node3_z,NODE,ele_node_temp(KK,4),U,Z
+	*get,node3_temp,NODE,ele_node_temp(KK,4),NTEMP
+	*get,node3_x,NODE,ele_node_temp(KK,4),LOC,X	
+	clearance=ini_clearance-(node3_z*1000-base_protrusion)
+	*if,clearance,LT,0,then
+		clearance=0
+	*endif
+	
+	gap(KK,3)=clearance
+	dT3 = node3_temp - disk_temp(KK,3)	
+	*use, HF_cal.mac, gap(KK,3), node3_x, disk_temp(KK,3), dT3
+	ele_CONV_out(KK,3)=output
+
+	slider_temp(KK,3) = node3_temp
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+	*if,gap(KK,1),LT,gap_min1,then
+		gap_min1 = gap(KK,1)
+	*endif
+	*if,gap(KK,2),LT,gap_min1,then
+		gap_min1 = gap(KK,2)
+	*endif
+	*if,gap(KK,3),LT,gap_min1,then
+		gap_min1 = gap(KK,3)
+	*endif
+
+*enddo
+
+TFCprotrusion_1(main_iteration_count)=ini_clearance-gap_min1
+main_iteration_count=main_iteration_count+1
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+*CFOPEN,temp_TFCprotrusion_main1,dat
+*VWRITE,TFCprotrusion_1(1)
+(F15.11,' ',F15.11)
+*CFCLOS
+
+*CFOPEN,slider_temp,dat
+*VWRITE,slider_temp(1,1),slider_temp(1,2),slider_temp(1,3)
+(F15.11,' ',F15.11,' ',F15.11)
+*CFCLOS
+
+*CFOPEN,Convection_coef_slider_out,dat
+*Vwrite,ele_CONV_out(1,1),ele_CONV_out(1,2),ele_CONV_out(1,3)
+(F15.5,' ',F15.5,' ',F15.5)
+*CFCLOS
+
+*CFOPEN,gap,dat
+*VWRITE,gap(1,1),gap(1,2),gap(1,3)
+(F15.11,' ',F15.11,' ',F15.11)
+*CFCLOS
+
+*CFOPEN,gap_initial2,dat
+*VWRITE,gap_initial(1,1),gap_initial(1,2),gap_initial(1,3)
+(F15.11,' ',F15.11,' ',F15.11)
+*CFCLOS
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
